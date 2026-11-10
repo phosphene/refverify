@@ -281,7 +281,7 @@ class ArxivClient(_Cached):
 
 
 def default_chain(cache: FileCache | None = None) -> list:
-    """Fallback order per imi-pipeline#22: Crossref -> OpenAlex -> arXiv."""
+    """Fallback order per editorial-pipeline#22: Crossref -> OpenAlex -> arXiv."""
     return [
         CrossrefClient(cache=cache),
         OpenAlexClient(cache=cache),
