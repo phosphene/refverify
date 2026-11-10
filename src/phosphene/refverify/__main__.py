@@ -1,15 +1,15 @@
-"""Thin CLI: bibliography verification gate.
-
-All logic lives in the domain; this is arg parsing + output only.
+"""CLI: bibliography and manuscript reference verification gate.
 
 Modes:
-    uv run python -m phosphene.refverify bib.txt [--no-cache] [--ttl-seconds N]
-    uv run python -m phosphene.refverify --wiki page.wiki [page2.wiki ...]
-                                                   [--no-cache] [--ttl-seconds N]
+    refverify document.md [--no-cache] [--ttl-seconds N]
+    refverify document.docx [--no-cache] [--ttl-seconds N]
+    refverify bibliography.txt [--no-cache] [--ttl-seconds N]
+    refverify --wiki page.wiki [page2.wiki ...] [--no-cache] [--ttl-seconds N]
 
---wiki extracts the ``|Bibliography=`` field from {{Article}} pages and
-verifies those entries; pages without the field are skipped (nothing to
-verify). Exit code: 0 pass/warn, 1 no input, 2 gate BLOCK.
+Exit codes:
+    0: pass or warn
+    1: invocation error or no input
+    2: gate BLOCK (severe mismatch, duplication, or unresolvable load-bearing citation)
 """
 
 from __future__ import annotations
@@ -20,97 +20,129 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from phosphene.refverify.adapters.cache import FileCache
-from phosphene.refverify.adapters.providers import default_chain
-from phosphene.refverify.domain.reference import Reference, parse_bibliography_wikitext
-from phosphene.refverify.domain.verdict import Verdict, VerdictResult
-from phosphene.refverify.domain.verify import gate_decision, verify_all
+from phosphene.refverify.adapters.providers import (
+    ArxivAdapter,
+    CrossrefAdapter,
+    OpenAlexAdapter,
+    SemanticScholarAdapter,
+)
+from phosphene.refverify.domain.readers import extract_bibliography
+from phosphene.refverify.domain.verdict import GateDecision
+from phosphene.refverify.domain.verify import verify_bibliography
 from phosphene.refverify.domain.wikitext import extract_article_field
 
 EXIT_OK = 0
-EXIT_NO_INPUT = 1
+EXIT_USAGE = 1
 EXIT_BLOCK = 2
 
-_BLOCKING = {Verdict.METADATA_MISMATCH, Verdict.NOT_FOUND, Verdict.DUPLICATE}
 
-
-def _read_bibliography_text(path: str) -> str:
-    if path == "-":
-        return sys.stdin.read()
-    return Path(path).read_text()
-
-
-def _verify_bibliography(text: str, cache: FileCache, label: str) -> tuple[str, int]:
-    """Verify one bibliography text; returns (gate decision, blocking count)."""
-    refs = parse_bibliography_wikitext(text)
-    if not refs:
-        print(f"no bibliography entries found in {label}")
-        return "pass", 0
-    results = verify_all(refs, default_chain(cache=cache))
-    decision = gate_decision(r.verdict for r in results)
-    blocking = sum(1 for r in results if r.verdict in _BLOCKING)
-    _print_report(refs, results, decision, label)
-    return decision, blocking
-
-
-def _print_report(
-    refs: Sequence[Reference],
-    results: Sequence[VerdictResult],
-    decision: str,
-    label: str,
-) -> None:
-    for ref, r in zip(refs, results, strict=True):
-        marker = r.verdict.value.upper()
-        src = r.matched_source or "-"
-        print(f"[{marker}] {ref.text[:80]}")
-        print(f"    score={r.score} source={src} {r.matched_title[:70]}")
-        for reason in r.reasons:
-            print(f"    - {reason}")
-    print(f"\nGATE: {decision.upper()} ({label})")
-
-
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="refverify")
-    parser.add_argument(
-        "bibliography",
-        nargs="?",
-        default="-",
-        help="path to Bibliography-field text ('-' = stdin)",
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="refverify",
+        description="Scholarly reference verification and quality-control gate.",
     )
-    parser.add_argument(
+    p.add_argument(
+        "files",
+        nargs="*",
+        help="Path(s) to manuscript (.md), document (.docx), bibliography (.txt), or wikitext (.wiki).",
+    )
+    p.add_argument(
         "--wiki",
-        action="append",
-        default=[],
-        help=".wiki {{Article}} page; verifies its |Bibliography= field (repeatable)",
+        action="store_true",
+        help="Treat input as Observatory/Wikipedia {{Article}} template files and extract |Bibliography= field.",
     )
-    parser.add_argument("--no-cache", action="store_true")
-    parser.add_argument("--ttl-seconds", type=int, default=None)
+    p.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Bypass on-disk HTTP response cache.",
+    )
+    p.add_argument(
+        "--ttl-seconds",
+        type=int,
+        default=604800,
+        help="Cache time-to-live in seconds (default: 7 days).",
+    )
+    return p
+
+
+def _build_cache(no_cache: bool, ttl_seconds: int) -> FileCache:
+    if no_cache:
+        return FileCache.in_memory(ttl_seconds=0, enabled=False)
+    cache_dir = Path.home() / ".cache" / "refverify"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return FileCache(cache_dir, ttl_seconds=ttl_seconds)
+
+
+def _verify_text(text: str, cache: FileCache, label: str) -> tuple[GateDecision, int]:
+    if not text.strip():
+        print(f"{label}: [EMPTY] no references found.")
+        return "pass", 0
+
+    lookup = CrossrefAdapter(
+        cache,
+        fallback=OpenAlexAdapter(
+            cache,
+            fallback=SemanticScholarAdapter(cache, fallback=ArxivAdapter(cache)),
+        ),
+    )
+    result = verify_bibliography(text, lookup)
+
+    print(f"
+=== {label} ===")
+    print(f"Decision: {result.decision.upper()} ({result.total_blocking} blocking issue(s))")
+    print(
+        f"Total: {len(result.references)} | "
+        f"Verified: {len(result.verified)} | "
+        f"Mismatches: {len(result.mismatches)} | "
+        f"Duplicates: {len(result.duplicates)} | "
+        f"Unresolved: {len(result.unresolved)}"
+    )
+
+    for v in result.verified:
+        print(f"  [PASS] {v.reference.raw[:75]}... (score: {v.score:.2f})")
+    for m in result.mismatches:
+        print(f"  [WARN/MISMATCH] {m.reference.raw[:75]}... -> best match: {m.candidate_title[:50]} (score: {m.score:.2f})")
+    for d in result.duplicates:
+        print(f"  [BLOCK/DUP] {d.reference.raw[:75]}...")
+    for u in result.unresolved:
+        print(f"  [UNRESOLVED] {u.reference.raw[:75]}...")
+
+    return result.decision, result.total_blocking
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = build_parser()
     args = parser.parse_args(argv)
 
-    cache = FileCache(enabled=not args.no_cache)
-    if args.ttl_seconds is not None:
-        cache.ttl = args.ttl_seconds
+    if not args.files:
+        parser.print_help()
+        return EXIT_USAGE
 
-    worst = "pass"
+    cache = _build_cache(args.no_cache, args.ttl_seconds)
+    worst: GateDecision = "pass"
     blocking_total = 0
 
-    for wiki_path in args.wiki:
-        text = Path(wiki_path).read_text()
-        field = extract_article_field(text, "Bibliography")
-        if not field:
-            print(f"no |Bibliography= field, skipped: {wiki_path}")
-            continue
-        decision, blocking = _verify_bibliography(field, cache, wiki_path)
+    for file_str in args.files:
+        path = Path(file_str)
+        if not path.exists():
+            print(f"File not found: {path}", file=sys.stderr)
+            return EXIT_USAGE
+
+        if args.wiki:
+            raw_text = path.read_text(encoding="utf-8", errors="replace")
+            bib_text = extract_article_field(raw_text, "Bibliography")
+            if not bib_text:
+                print(f"no |Bibliography= field, skipped: {path}")
+                continue
+        else:
+            bib_text = extract_bibliography(path)
+
+        decision, blocking = _verify_text(bib_text, cache, str(path))
         if decision == "block":
             worst = "block"
         elif decision == "warn" and worst != "block":
             worst = "warn"
         blocking_total += blocking
-
-    if not args.wiki:
-        decision, blocking = _verify_bibliography(
-            _read_bibliography_text(args.bibliography), cache, args.bibliography
-        )
-        worst, blocking_total = decision, blocking
 
     if worst == "block":
         return EXIT_BLOCK
