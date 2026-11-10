@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import enum
-from dataclasses import dataclass, field
+from pydantic import Field
+from phosphene.core.models import InvariantStatic
 
 # Standard editorial publication gate verdict rubric:
 #   verified            -- cited metadata matches the provider record
@@ -24,13 +25,12 @@ class Verdict(enum.StrEnum):
     DUPLICATE = "duplicate"
 
 
-@dataclass(frozen=True, slots=True)
-class VerdictResult:
+class VerdictResult(InvariantStatic):
     """Outcome of verifying one Reference against the providers."""
 
     verdict: Verdict
     score: float
-    reasons: tuple[str, ...] = field(default_factory=tuple)
+    reasons: tuple[str, ...] = Field(default_factory=tuple)
     matched_title: str = ""
     matched_doi: str | None = None
     matched_source: str = ""  # provider name
