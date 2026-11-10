@@ -1,11 +1,10 @@
-"""phosphene-refverify -- reference-verification QC gate.
+"""phosphene-refverify -- reference-verification quality-control gate.
 
-Pure domain (Reference, Verdict, scoring, dedup, verification) + provider
-ports (LookupClient protocol) + thin httpx adapters. Spec:
-FlowFeel/imi-pipeline#22. Policy: Upstream Code Adoption Policy
-(meta/reference/operational-policies.md) -- rewritten from an externally
-assessed tool, upstream kept as reference-only.
+Pure domain (Reference, Verdict, scoring, deduplication, verification)
+paired with provider protocol ports (LookupClient) and network adapters.
 """
+
+from __future__ import annotations
 
 from phosphene.refverify.domain.reference import Reference
 from phosphene.refverify.domain.verdict import Verdict, VerdictResult
