@@ -215,3 +215,12 @@ dual-signal AI and human collaboration:
 - For **humans and generative LLMs**, it is clean, legible, expressive prose;
 - For **deterministic verification engines (RLVR, AST analyzers, QC gates)**, it is a strictly addressable,
   hierarchical data structure with verifiable invariants.
+
+---
+
+## 6. Projections to General Concerns
+
+The capacities documented here (AST structural extraction, lossless YAML shadow patching, and block coordinate addressability)
+are formally projected into generalized tools and cross-domain architectures in the proposed projection namespace:
+👉 **[`projections/general-capacities.md`](projections/general-capacities.md)** (`:projection.capacity/*`, `:projection.domain/*`).
+
