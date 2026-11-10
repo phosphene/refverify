@@ -18,7 +18,7 @@ Parsing contract:
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from phosphene.core.models import InvariantStatic
 
 _DOI_RE = re.compile(r"\b(10\.\d{4,9}/[^\s,;\"']+)", re.IGNORECASE)
 _YEAR_PAREN_RE = re.compile(r"\((\d{4})\)")
@@ -31,8 +31,7 @@ _BOLD_RE = re.compile(r"'{3}(.+?)'{3}")
 _AUTHOR_SPLIT_RE = re.compile(r",?\s+and\s+|\s+and\s+", re.IGNORECASE)
 
 
-@dataclass(frozen=True, slots=True)
-class Reference:
+class Reference(InvariantStatic):
     """One bibliography entry, normalized. Empty string = absent.
 
     text  -- full cleaned entry line (display + dedup fallback)
