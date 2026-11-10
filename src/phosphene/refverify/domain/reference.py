@@ -70,12 +70,15 @@ def normalize_title(title: str) -> str:
 
 
 def clean_wikitext(raw: str) -> str:
-    """Strip wiki markup from a bibliography entry line.
+    """Strip bullet markers and wiki markup from a bibliography entry line.
 
     ``[url Text]`` keeps the link text; bare ``[url]`` is dropped;
     ''italic'' and '''bold''' markers removed.
     """
-    t = _WIKI_LINK_RE.sub(r"\1", raw)
+    t = raw.strip()
+    if t.startswith(("* ", "- ")):
+        t = t[2:].strip()
+    t = _WIKI_LINK_RE.sub(r"\1", t)
     t = _WIKI_URL_RE.sub("", t)
     t = _BOLD_RE.sub(r"\1", t)
     t = _ITALIC_RE.sub(r"\1", t)
@@ -88,7 +91,7 @@ def _extract_title(cleaned: str, link_title: str | None) -> str:
         return link_title.strip()
     m = _YEAR_PAREN_RE.search(cleaned)
     if m:
-        after = cleaned[m.end() :].lstrip(" ")
+        after = cleaned[m.end() :].lstrip(" .")
         # title runs to the first sentence break (". " / ".:''" patterns)
         stop = re.search(r"\.\s", after)
         title = after[: stop.start()] if stop else after
