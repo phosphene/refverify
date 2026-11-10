@@ -10,9 +10,26 @@ updated: 2026-11-10
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
-[![Architecture: Hexagonal](https://img.shields.io/badge/architecture-hexagonal-success)](README.md#architecture)
+[![Architecture: Hexagonal](https://img.shields.io/badge/architecture-hexagonal-success)](docs/architecture.md)
+[![Docs: Literate](https://img.shields.io/badge/docs-literate%20prolix-success)](docs/index.md)
 
 `refverify` validates bibliographic entries and citations from academic manuscripts (Markdown, DOCX, plain text) and wikitext, resolving citations against primary metadata registries (Crossref, OpenAlex, arXiv) with an offline-first caching layer.
+
+---
+
+## 📚 Literate Documentation Suite & Architectural Innovations
+
+Under the **Principle of Sufficient Reason** and the **Phosphene Federated Knowledge Architecture (FKA)**, `refverify` maintains a standalone, self-documenting literate knowledge suite in `docs/`:
+
+| Document | Primary Coordinate | Focus |
+|---|---|---|
+| 📖 [**Documentation Index**](docs/index.md) | `:refverify/fka-registry` | Topological map, FKA coordinate index, and navigation graph. |
+| 🏛️ [**Ethos & Sufficient Reason**](docs/ethos.md) | `:refverify.ethos/sufficient-reason` | Writing to ourselves, sufficient reason, and public science commitments. |
+| 💡 [**`mdrag` & Frontmatter Innovations**](docs/mdrag-and-frontmatters-innovations.md) | `:mdrag.core/ast-aware`<br>`:frontmatters.patch/shadow` | **Primary use-case specification:** AST block isolation vs. regex fragility, lossless YAML shadow patching, and coordinate block addressability. |
+| 🌐 [**General Capacity Projections**](docs/projections/general-capacities.md) | `:projection.capacity/*`<br>`:projection.domain/*` | **Proposed Projections:** Generalizing AST extraction, shadow patching, and block coordinates to external concerns (legal, clinical, standards, software). |
+| 🔬 [**Citation Verification & Scoring**](docs/citation-verification.md) | `:refverify.apparatus/citations` | Multi-registry reconciliation (Crossref, OpenAlex, arXiv, S2), composite scoring weights $[0, 100]$, and `PASS`/`WARN`/`BLOCK` gates. |
+| ⚙️ [**Hexagonal Architecture**](docs/architecture.md) | `:refverify.arch/hexagonal` | Logic/IO separation, `LookupClient` port, offline-first SQLite tier, and telemetry models. |
+| 📐 [**Scientific Documentation Standards**](docs/scientific-documentation-standards.md) | `:phos.standards/scientific-docs` | The literate engineering standard, docstring contracts, and epistemic basis tiers. |
 
 ---
 
@@ -110,6 +127,7 @@ verification_summary:
 ```
 
 ---
+
 ### Cache Management & Direct Verification
 By default, query results are cached locally in `~/.cache/refverify/cache-v2.json` with a 30-day TTL.
 
