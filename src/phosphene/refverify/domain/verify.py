@@ -2,7 +2,7 @@
 
 verify_one: a Reference + ordered provider ports -> VerdictResult.
 verify_all: whole bibliography + duplicate pass.
-gate_decision: verdicts -> pass / warn / block (imi-pipeline#22 wiring).
+gate_decision: verdicts -> pass / warn / block publication decisions.
 
 No network, no clock, no I/O. Concurrency lives in the CLI layer.
 """
@@ -153,7 +153,7 @@ def verify_all(
 
 
 def gate_decision(verdicts: Sequence[Verdict]) -> str:
-    """Publish-gate mapping (imi-pipeline#22).
+    """Publish-gate mapping.
 
     block  -- any metadata_mismatch, not_found, or duplicate
     warn   -- only low_confidence / verified-secondary remain
