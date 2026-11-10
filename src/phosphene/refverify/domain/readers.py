@@ -1,19 +1,72 @@
-"""Document intake readers for bibliography extraction.
+"""Document intake readers and AST-aware markdown orchestration.
 
-Extracts bibliography blocks and citation lists from:
-- Plain text / bibliography files (.txt)
-- Academic Markdown manuscripts (.md)
-- Word documents (.docx)
-- Wikitext articles (.wiki)
+Extracts bibliography blocks, parses citations, and synchronizes frontmatter
+using phosphene-mdrag and phosphene-frontmatters.
 """
 
 from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Any
+
+from phosphene.core.models import InvariantStatic
+from phosphene.refverify.domain.reference import Reference, from_wikitext_entry
+
+
+class DocumentVerificationAudit(InvariantStatic):
+    """Audit metadata to project into markdown frontmatter."""
+
+    verified: bool
+    score: float
+    gate: str
+    total_references: int
+    verified_count: int
+    mismatch_count: int
+    unresolved_count: int
 
 
 def extract_from_markdown(text: str) -> str:
+    """Extract references section using mdrag AST parsing when available."""
+    try:
+        from phosphene.mdrag.engine import MarkdownEngine
+
+        engine = MarkdownEngine()
+        # If document lacks frontmatter, prepend a lightweight transient header for the AST parser
+        doc_text = text if text.strip().startswith("---") else f"---\nuri: transient/document\n---\n\n{text}"
+        ast = engine.read(doc_text)
+
+        ref_heading_pattern = re.compile(
+            r"^(references|bibliography|literature cited)\b", re.IGNORECASE
+        )
+
+        in_ref_section = False
+        items: list[str] = []
+
+        for block in ast.blocks:
+            if block.type == "heading":
+                title = str(block.attrs.get("text", "")).strip()
+                if ref_heading_pattern.match(title):
+                    in_ref_section = True
+                    continue
+                elif in_ref_section:
+                    break
+
+            if in_ref_section:
+                if block.type == "list":
+                    list_items = block.attrs.get("items", [])
+                    items.extend(str(item) for item in list_items)
+                elif block.type == "paragraph":
+                    content = str(block.attrs.get("content", ""))
+                    if content:
+                        items.append(content)
+
+        if items:
+            return "\n".join(items).strip()
+    except Exception:
+        pass
+
+    # Deterministic fallback line parser
     lines = text.splitlines()
     header_pattern = re.compile(r"^#{1,4}\s*(references|bibliography|literature cited)\b", re.IGNORECASE)
 
@@ -39,6 +92,32 @@ def extract_from_markdown(text: str) -> str:
     return "\n".join(citation_lines).strip()
 
 
+def patch_document_frontmatter(
+    content: str, audit: DocumentVerificationAudit
+) -> str:
+    """Apply frontmatter audit metadata using phosphene-frontmatters shadow patching.
+
+    Preserves existing YAML layout, comments, and structure.
+    """
+    from phosphene.frontmatters.core.manager import FrontmatterManager
+    from phosphene.frontmatters.frontmatter import OpenFrontmatter
+
+    manager = FrontmatterManager(OpenFrontmatter)
+    model, body, shadow = manager.load(content)
+
+    model.references_verified = audit.verified
+    model.verification_score = audit.score
+    model.verification_gate = audit.gate
+    model.verification_summary = {
+        "total": audit.total_references,
+        "verified": audit.verified_count,
+        "mismatch": audit.mismatch_count,
+        "unresolved": audit.unresolved_count,
+    }
+
+    return manager.save(model, body, shadow)
+
+
 def extract_from_docx(docx_path: str | Path) -> str:
     try:
         import docx
@@ -46,8 +125,8 @@ def extract_from_docx(docx_path: str | Path) -> str:
         full_text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
         return extract_from_markdown(full_text)
     except ImportError:
-        import zipfile
         import xml.etree.ElementTree as ET
+        import zipfile
 
         with zipfile.ZipFile(docx_path) as z:
             xml_content = z.read("word/document.xml")
