@@ -14,7 +14,7 @@ deliberate package change, not a vendored shortcut.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from phosphene.core.models import InvariantStatic
 from difflib import SequenceMatcher
 
 from phosphene.refverify.domain.reference import Reference, normalize_title
@@ -27,8 +27,7 @@ _WEIGHT_AUTHOR = 25.0
 _WEIGHT_YEAR = 15.0
 
 
-@dataclass(frozen=True, slots=True)
-class CandidateRecord:
+class CandidateRecord(InvariantStatic):
     """Normalized provider record -- what the port returns."""
 
     title: str
