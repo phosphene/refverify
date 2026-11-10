@@ -1,43 +1,124 @@
-# refverify
+---
+uri: phosphene.tooling/refverify
+owner: edphos
+status: active
+license: MIT
+updated: 2026-11-10
+---
 
-Scholarly reference verification and quality-control gate.
+# `refverify` — Scholarly Reference Verification & Quality-Control Gate
 
- parses bibliographic entries from academic manuscripts (Markdown, text) and wikitext, resolving citations against primary metadata registries (Crossref, OpenAlex, Semantic Scholar, arXiv) with an offline-first caching layer.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python: 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
+[![Architecture: Hexagonal](https://img.shields.io/badge/architecture-hexagonal-success)](README.md#architecture)
 
-## Architecture
+`refverify` validates bibliographic entries and citations from academic manuscripts (Markdown, DOCX, plain text) and wikitext, resolving citations against primary metadata registries (Crossref, OpenAlex, arXiv) with an offline-first caching layer.
 
-- **Domain:** Pure verification, scoring, deduplication, and gate decisions. Zero I/O or network dependencies.
-- **Ports & Adapters:** Hexagonal lookup client protocol with thin HTTP adapters (Crossref, OpenAlex, Semantic Scholar, arXiv) and local disk cache.
-- **Specification:** Formal Gherkin feature specs in .
+---
 
-## Installation
+## 1. Architecture
 
-Defaulting to user installation because normal site-packages is not writeable
+`refverify` implements strict logic and I/O separation via a hexagonal architecture:
 
-Or with :
+```
+  ┌─────────────────────────────────────────────────────────────┐
+  │                      Intake Readers                         │
+  │     Markdown (.md)  │  Word (.docx)  │  Wikitext (.wiki)    │
+  └──────────────────────────────┬──────────────────────────────┘
+                                 │
+                                 ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │                  Pure Domain Core (DFT)                     │
+  │     - Reference Extraction & Normalization                  │
+  │     - Pure Scoring Algorithm (Title, Author, Year)          │
+  │     - Intra-Manuscript Duplicate & Discrepancy Detection    │
+  │     - Tripartite Gate Decision (PASS / WARN / BLOCK)        │
+  └──────────────────────────────┬──────────────────────────────┘
+                                 │
+                                 ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │                   Ports & Infrastructure                    │
+  │     - Protocol Port: LookupClient                           │
+  │     - Local Disk Cache Adapter (FileCache, TTL)             │
+  │     - Upstream Registry Adapters: Crossref, OpenAlex, arXiv │
+  └─────────────────────────────────────────────────────────────┘
+```
 
+- **Pure Domain:** Pure verification, scoring, deduplication, and gate decisions. Executes mathematical and algorithmic verification over citation data, isolating network and filesystem operations behind explicit protocol interfaces.
+- **Ports & Adapters:** Defines an abstract `LookupClient` protocol satisfied by HTTP adapters (`CrossrefClient`, `OpenAlexClient`, `ArxivClient`) and a local disk cache (`FileCache`).
+- **Specification:** Formal Gherkin feature specifications in `features/reference_verification.feature`.
 
+---
 
-## Usage
+## 2. Installation
 
-Verify a raw bibliography or manuscript section:
+Install via `pip`:
 
+```bash
+pip install .
+```
 
+Or run via `uv`:
 
-Verify Wikipedia/Observatory wikitext pages:
+```bash
+uv pip install -e .
+```
 
+---
 
+## 3. Usage
 
-Run without cache:
+### Verify Manuscripts & Bibliographies
+`refverify` automatically detects input format by file extension:
 
+```bash
+# Academic Markdown manuscript
+refverify manuscript.md
 
+# Word document
+refverify draft.docx
 
-## Gate Decisions
+# Raw bibliography text
+refverify references.txt
+```
 
-- **PASS:** All citations resolve with high metadata confidence ($\ge 0.85$ title similarity, matching author and publication year).
-- **WARN:** Low-confidence matches or missing DOI fallbacks that require human verification.
-- **BLOCK:** Metadata mismatch (wrong year/author/title), duplicate citation, or unresolvable reference.
+### Verify Wikitext Pages
+Pass the `--wiki` flag to extract and verify the `|Bibliography=` field from MediaWiki templates:
 
-## License
+```bash
+refverify --wiki article.wiki
+```
+
+### Cache Management & Direct Verification
+By default, query results are cached locally in `~/.cache/refverify/cache-v2.json` with a 30-day TTL.
+
+```bash
+# Direct upstream verification (bypassing cache)
+refverify manuscript.md --no-cache
+
+# Custom cache time-to-live (in seconds)
+refverify manuscript.md --ttl-seconds 86400
+```
+
+---
+
+## 4. Gate Decisions & Verification Scoring
+
+Each reference receives an empirical composite match score $[0, 100]$ based on weighted heuristic components:
+- **Title Similarity (60%):** Sequence matching ratio over normalized letter-digit strings.
+- **Author Match (25%):** Primary surname agreement.
+- **Publication Year (15%):** Exact year agreement (15 pts) or $\pm 1$ year divergence (10 pts).
+
+The publication gate evaluates composite verdicts across the bibliography:
+
+| Verdict | Criteria | Gate Action |
+|---|---|---|
+| **PASS** | All citations resolve with high metadata confidence ($\ge 85$ composite score, exact DOI verification, or verified arXiv identity). | Publication approved |
+| **WARN** | Low-confidence matches ($45 \le \text{score} < 85$) or unindexed entries requiring human editorial review. | Editorial review flagged |
+| **BLOCK** | Metadata mismatch (divergent title/year under cited DOI), duplicate citations of identical works, or unresolvable references. | Publication blocked |
+
+---
+
+## 5. License
 
 MIT

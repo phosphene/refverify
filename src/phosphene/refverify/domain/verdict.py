@@ -5,7 +5,7 @@ from __future__ import annotations
 import enum
 from dataclasses import dataclass, field
 
-# Verdict rubric (imi-pipeline#22; upstream vocabulary where compatible):
+# Standard editorial publication gate verdict rubric:
 #   verified            -- cited metadata matches the provider record
 #   verified-secondary  -- no DOI cited; strong title/author match
 #   metadata_mismatch   -- identifier resolves but metadata disagrees

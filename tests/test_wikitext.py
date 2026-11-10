@@ -1,4 +1,4 @@
-"""Pure tests: wikitext field extraction (imi-pipeline#22 gate input)."""
+"""Pure tests: wikitext field extraction for editorial gate intake."""
 
 from __future__ import annotations
 
