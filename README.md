@@ -44,7 +44,7 @@ updated: 2026-11-10
   └─────────────────────────────────────────────────────────────┘
 ```
 
-- **Pure Domain:** Pure verification, scoring, deduplication, and gate decisions. Executes mathematical and algorithmic verification over citation data, isolating network and filesystem operations behind explicit protocol interfaces.
+- **Pure Domain & Core Invariants:** Pure verification, scoring, deduplication, and gate decisions. Value objects (`Reference`, `CandidateRecord`, `VerdictResult`) inherit from `phosphene.core.models.InvariantStatic`, guaranteeing immutability, mathematical hashability, and zero tolerance for schema drift (`extra='forbid'`).
 - **Ports & Adapters:** Defines an abstract `LookupClient` protocol satisfied by HTTP adapters (`CrossrefClient`, `OpenAlexClient`, `ArxivClient`) and a local disk cache (`FileCache`).
 - **Specification:** Formal Gherkin feature specifications in `features/reference_verification.feature`.
 
