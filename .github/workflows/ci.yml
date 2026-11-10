@@ -1,0 +1,88 @@
+name: CI & Distribution
+
+on:
+  push:
+    branches: [main, feat/*, "**/feat/*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  test:
+    name: Test & Invariant Verification
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          uv venv test-env
+          source test-env/bin/activate
+          # Install foundation packages directly from phosphene-py-packages public repository
+          uv pip install "phosphene-core @ git+https://github.com/phosphene/phosphene-py-packages.git#subdirectory=packages/phosphene-core"
+          uv pip install "phosphene-mdrag @ git+https://github.com/phosphene/phosphene-py-packages.git#subdirectory=packages/phosphene-mdrag"
+          uv pip install "phosphene-frontmatters @ git+https://github.com/phosphene/phosphene-py-packages.git#subdirectory=packages/phosphene-frontmatters"
+          uv pip install -e ".[dev,mdrag]"
+
+      - name: Run hermetic test suite with coverage
+        run: |
+          source test-env/bin/activate
+          pytest -v --durations=10
+
+  build-distribution:
+    name: Build & Verify Wheel Distribution
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout refverify
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build wheel and source distribution
+        run: |
+          mkdir -p dist
+          uv build --out-dir dist/
+          ls -la dist/
+
+      - name: Verify built wheel in isolated environment
+        run: |
+          uv venv test-env
+          source test-env/bin/activate
+          uv pip install "phosphene-core @ git+https://github.com/phosphene/phosphene-py-packages.git#subdirectory=packages/phosphene-core"
+          uv pip install dist/*.whl
+          python -c "import phosphene.refverify; print('phosphene.refverify wheel verified successfully')"
+
+      - name: Upload Distribution Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: refverify-distribution
+          path: dist/*
