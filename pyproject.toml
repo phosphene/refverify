@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "refverify"
+version = "0.1.0"
+description = "Scholarly reference verification and quality-control gate for academic manuscripts and wikitext."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [
+    {name = "Phosphene Platform Team", email = "flow@ind.media"}
+]
+dependencies = [
+    "httpx>=0.28.1",
+]
+
+[project.scripts]
+refverify = "phosphene.refverify.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/phosphene"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
