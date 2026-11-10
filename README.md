@@ -22,8 +22,10 @@ updated: 2026-11-10
 
 ```
   ┌─────────────────────────────────────────────────────────────┐
-  │                      Intake Readers                         │
-  │     Markdown (.md)  │  Word (.docx)  │  Wikitext (.wiki)    │
+  │         Intake Readers & Markdown Orchestration             │
+  │     - phosphene-mdrag AST parser (Open World Assumption)    │
+  │     - phosphene-frontmatters Shadow Patch Sync Engine       │
+  │     - Word Document (.docx) & Wikitext (.wiki) Adapters     │
   └──────────────────────────────┬──────────────────────────────┘
                                  │
                                  ▼
@@ -89,6 +91,25 @@ Pass the `--wiki` flag to extract and verify the `|Bibliography=` field from Med
 refverify --wiki article.wiki
 ```
 
+### Markdown Frontmatter Synchronization
+When evaluating academic manuscripts with frontmatter headers, `refverify` integrates with `phosphene-frontmatters` to project verification audit results directly into the document's YAML metadata without altering human-authored comments, indentation, or document styling:
+
+```yaml
+---
+title: Empirical Dynamics of Valence
+author: Lead Researcher # Primary author note
+references_verified: true
+verification_score: 96.5
+verification_gate: pass
+verification_summary:
+  total: 42
+  verified: 42
+  mismatch: 0
+  unresolved: 0
+---
+```
+
+---
 ### Cache Management & Direct Verification
 By default, query results are cached locally in `~/.cache/refverify/cache-v2.json` with a 30-day TTL.
 
