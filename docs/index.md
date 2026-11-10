@@ -18,7 +18,8 @@ abstract: |
   Federated Knowledge Architecture (FKA) navigation index and coordinate registry
   for the refverify documentation suite. Establishes the topological map of
   scholarly verification, AST-level md-rag block parsing, frontmatter shadow patching,
-  hexagonal architecture, and the foundational principle of sufficient reason.
+  hexagonal architecture, foundational principles of sufficient reason, and projections
+  to generalized external capacities.
 ---
 
 # `refverify` Literate Documentation Index
@@ -39,6 +40,7 @@ written to ourselves as authors, operators, and future maintainers under the aeg
 |---|---|---|
 | `:refverify.ethos/sufficient-reason` | [`ethos.md`](ethos.md) | The Principle of Sufficient Reason, self-documentation to ourselves, prolix vs. specification form. |
 | `:mdrag.core/ast-aware`<br>`:frontmatters.patch/shadow` | [`mdrag-and-frontmatters-innovations.md`](mdrag-and-frontmatters-innovations.md) | Primary use case & innovations: AST demarcation vs. regex fragility, shadow patching invariants, block addressability, and tool lessons. |
+| `:projection.capacity/*`<br>`:projection.domain/*` | [`projections/general-capacities.md`](projections/general-capacities.md) | **Proposed Projections:** Generalizing AST extraction, shadow patching, and block coordinates to external concerns (legal, clinical, standards, software). |
 | `:refverify.apparatus/citations` | [`citation-verification.md`](citation-verification.md) | Multi-registry bibliographic reconciliation, fuzzy metric weights, composite scoring $[0, 100]$, and publication gates (`PASS`, `WARN`, `BLOCK`). |
 | `:refverify.arch/hexagonal` | [`architecture.md`](architecture.md) | Logic/IO separation, `LookupClient` port, offline-first SQLite tier, and telemetry contracts. |
 | `:phos.standards/scientific-docs` | [`scientific-documentation-standards.md`](scientific-documentation-standards.md) | Phosphene scientific documentation ethos, literate docstring standards, and epistemic basis tiers. |
@@ -68,16 +70,15 @@ written to ourselves as authors, operators, and future maintainers under the aeg
 │  :mdrag.core/ast-aware                │  │  :refverify.apparatus/citations     │
 │  :frontmatters.patch/shadow           │  │  Multi-registry matching & gates    │
 │  AST blocks & lossless YAML patching  │  │  Crossref / OpenAlex / arXiv / S2   │
+└──────────────────┬────────────────────┘  └─────────────────────────────────────┘
+                   │                                  │
+       projects to │                                  │ evaluated against
+                   ▼                                  ▼
+┌───────────────────────────────────────┐  ┌─────────────────────────────────────┐
+│  projections/general-capacities.md    │  │scientific-documentation-standards.md│
+│  :projection.capacity/*               │  │  :phos.standards/scientific-docs   │
+│  Generalized domain applications      │  │  Literate prolix & epistemic tiers  │
 └───────────────────────────────────────┘  └─────────────────────────────────────┘
-                                 │                │
-                                 └────────┬───────┘
-                                          │ evaluated against
-                                          ▼
-                  ┌──────────────────────────────────────────────┐
-                  │     scientific-documentation-standards.md    │
-                  │     :phos.standards/scientific-docs          │
-                  │     Literate prolix & epistemic tiers        │
-                  └──────────────────────────────────────────────┘
 ```
 
 ---
