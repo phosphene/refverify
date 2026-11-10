@@ -15,167 +15,226 @@ coordinates:
   - :projection.domain/markdown-ticketing
   - :projection.domain/federated-wiki-corpora
   - :projection.domain/structured-block-namespacing
-  - :projection.domain/legal-regulatory
-  - :projection.domain/clinical-trials
 builds-on:
   - phosphene.tooling/refverify/docs/mdrag-and-frontmatters-innovations
-  - phosphene.tooling/refverify/docs/ethos
+  - phosphene.tooling/refverify/docs/architecture
 converges-with:
-  - work/inferno-labs/handoff/mdrag-philosophy
-  - team/fka-explainer
   - team/platform/doc-standards
+  - team/platform/md-rags/hickey
 abstract: |
-  Projects the capacities proven in refverify (AST block extraction via mdrag,
-  lossless YAML shadow patching via frontmatters, and Hickey coordinate block addressability)
-  across multiple tiers of practice. Grounds the primary domain in actual software engineering
-  teams actively using Markdown for living ticket systems, federated research wikis, and structured
-  block namespacing, before projecting outwards to external high-assurance domains.
+  Technical specification projecting the structural capacities developed in refverify
+  (AST node demarcation, lossless CST shadow patching, and Hickey coordinate block addressing)
+  to general software systems where Markdown serves as the system of record. Analyzes concrete
+  data structures, parser failure modes, state synchronization protocols, and tree-addressing
+  mechanics across ticketing, federated research wikis, and structured block namespacing.
 ---
 
-# Projections — General Capacities Across Operational Levels
+# Projections — Technical Architecture & Problem Space for Structured Markdown
 
 > **Coordinate Namespace:** `phosphene.tooling.refverify.projections.*`  
-> Projecting proven verification and AST primitives into tiered operational software domains.
+> Formal decomposition of AST demarcation, Concrete Syntax Tree (CST) shadow patching, and coordinate-addressed block graphs.
 
 ---
 
-## 1. The Multi-Level Projection Principle
+## 1. Technical Problem Space: The Failure of String-Oriented Tooling
 
-In `refverify`, three foundational capacities were proven in the crucible of public science:
-1. **AST-Level Demarcation (`phosphene-mdrag`):** Isolating discrete structural sections without regex fragility or syntax-boundary leakage.
-2. **Lossless Shadow Patching (`phosphene-frontmatters`):** Surgically injecting and updating machine-verifiable audit stamps into YAML frontmatter while preserving author comments, indentation, custom keys, and formatting byte-for-byte.
-3. **Coordinate Block Addressability:** Transforming linear Markdown into an addressable graph where in-text assertions link to verified authority nodes via immutable coordinates (`doc:sec:p3:cite:1`).
+When engineering teams and research platforms use Markdown as an authoritative system of record—for ticket trackers, architectural records, or federated wikis—tooling frequently treats files as flat strings or raw character buffers.
 
-Per Phosphene standards, projections must not begin as abstract speculations about hypothetical industries.
-**They must be grounded in actual software engineering practices by teams that actively use Markdown as their primary system of record.**
-
-We structure our projections into **three operational tiers**:
-- **Level 1 (Direct Software Practice):** Teams using Markdown for living ticket architectures (`TICKETS-*.md`), initiative tracking, and CI/CD gating.
-- **Level 2 (Federated Knowledge Corpora):** Multi-author research wikis, architectural decision records (ADRs), and documentation systems organized around namespaced Hickey coordinates.
-- **Level 3 (External Compliance-Critical Systems):** High-assurance regulatory, legal, and clinical domains that demand the same mathematical guarantees of non-destructive mutation and claim-to-evidence provenance.
+This string-oriented approach introduces three deterministic failure modes in automated software workflows:
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ LEVEL 1: DIRECT SOFTWARE ENGINEERING PRACTICE                                          │
-│ Markdown Ticketing • Living Issue Trackers • CI/CD Verification & Status Stamping      │
-│ Coordinates: :projection.domain/markdown-ticketing, :projection.capacity/*              │
+│                          STRING-ORIENTED PARSER COLLAPSE MODES                         │
+├──────────────────────────────┬──────────────────────────────┬──────────────────────────┤
+│    Boundary Permeability     │  Destructive Serialization   │  Transient Coordinate    │
+│       (Regex Bleed)          │       (AST -> Dump)          │        Invalidation      │
+├──────────────────────────────┼──────────────────────────────┼──────────────────────────┤
+│ Regex `^## ` matches inside  │ Round-trip parsing drops     │ Line-number or heading-  │
+│ code fences, blockquotes,    │ comments, strips whitespace, │ slug links break under   │
+│ or nested lists. Scope has   │ reorders mapping keys, and   │ document edits. No       │
+│ no syntax-tree awareness.    │ mangles multiline scalars.   │ invariant content hash.  │
+└──────────────────────────────┴──────────────────────────────┴──────────────────────────┘
+```
+
+1. **Boundary Permeability:** Regular expressions cannot evaluate lexical context. A pattern scanning for `### T-\d+` cannot distinguish a ticket header from a code fence containing an example shell session (`echo "### T-123"`), leading to false block splits and syntax leakage.
+2. **Destructive Serialization:** Standard parser libraries parse Markdown or YAML into transient in-memory dictionaries or ASTs that discard trivia (whitespace, comments, column offsets, multiline scalar styles). Serializing back to disk destroys the human author's formatting.
+3. **Transient Coordinate Invalidation:** Referencing document sections via URI fragments (`#verification-results`) or line ranges (`L45-L60`) is brittle. Any upstream insertion or heading rephrasing breaks all downstream references.
+
+---
+
+## 2. Technical Primitives in `mdrag` & `frontmatters`
+
+`refverify` decomposes these problems into three distinct technical layers:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│ 1. AST Structural Demarcation (phosphene-mdrag)                                        │
+│    Token Stream -> Lexical Depth Stack -> Block AST Nodes (type, attrs, children)       │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
-│ LEVEL 2: FEDERATED KNOWLEDGE & RESEARCH WIKIS                                          │
-│ Distributed Markdown Wikis • Structured Block Namespacing • Hickey Coordinate Graphs   │
-│ Coordinates: :projection.domain/federated-wiki-corpora, :projection.domain/namespacing │
+│ 2. Dual-Layer CST Shadow Patching (phosphene-frontmatters)                             │
+│    Source Buffer -> Concrete Syntax Tree (with Trivia) + Open Domain Model (OWA)       │
+│    Surgical Splice: Target Key Mutation -> Token Offset Recalculation -> Clean Output  │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
-│ LEVEL 3: EXTERNAL HIGH-ASSURANCE DOMAINS                                               │
-│ Legal / Regulatory Compliance • Clinical Protocols • Normative Technical RFCs          │
-│ Coordinates: :projection.domain/legal-regulatory, :projection.domain/clinical-trials    │
+│ 3. Triadic Block Addressability (Hickey Coordinates)                                   │
+│    Document Coordinate : Block Type / Discriminator : Content Anchor                   │
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
----
+### Layer 1: AST Structural Slicing (`:projection.capacity/ast-extraction`)
+Instead of line-based heuristics, `phosphene-mdrag` parses Markdown into an AST where block boundaries are governed by syntax tree depth:
+- Headings establish scope frames on a stack.
+- A block starting at heading level $L$ terminates strictly when encountering an adjacent heading of level $\le L$, or on EOF.
+- Fenced code blocks (`code_block`), HTML blocks, and blockquotes are leaf or container nodes evaluated within their own isolated grammar rules, preventing internal token collisions.
 
-## 2. Level 1: Markdown Ticketing & Software Lifecycle Governance
+### Layer 2: Dual-Layer Shadow Patching (`:projection.capacity/shadow-patching`)
+`phosphene-frontmatters` maintains two parallel representations of the document header:
+1. **The CST (Concrete Syntax Tree):** A tokenized stream tracking byte offsets, comment tokens (`# ...`), whitespace sequences, and scalar quotation styles (`|`, `>`, `"`, `'`).
+2. **The Open Domain Model:** A typed dictionary/model operating under the Open-World Assumption (OWA). Unknown keys are held in an open set; known audit keys are typed and validated.
 
-> **Coordinates:** `:projection.tier/internal-software-engineering`, `:projection.domain/markdown-ticketing`
+When mutating metadata:
+- The domain model updates the target values.
+- The shadow patcher identifies the exact byte span occupied by the target key in the CST.
+- It performs a surgical replacement of that token span only, leaving all surrounding tokens, preceding comments, and trailing layout unaltered.
 
-Modern engineering organizations increasingly abandon monolithic, opaque SaaS issue trackers (Jira, linear databases) in favor of **in-repo, git-versioned Markdown ticketing** (e.g., `team/TICKETS-*.md`, `INITIATIVES.md`). In this paradigm, tickets live directly alongside code, branches, and architectural specifications.
-
-However, git-native ticketing introduces severe operational friction when automated agents and CI bots interact with human-authored files:
-
-### The Failure Mode in Ticketing Workflows
-1. **Status Clashing:** A human engineer writes ticket details, checklists, and notes with custom markdown comments (`<!-- blocked on upstream PR #42 -->`). When an automated bot updates the ticket status from `OPEN` to `VERIFIED`, naive parsers or LLMs rewrite the whole file, reordering tickets, wiping comments, and clobbering unmerged edits.
-2. **Regex Ticket Slicing:** Extracting individual ticket specifications (e.g., `### T-571: Synchronous Hook`) via regex fails when tickets contain embedded Markdown code blocks, nested test runs, or multiline bash transcripts.
-
-### How `mdrag` and `frontmatters` Resolve This
-- **AST Ticket Demarcation (`:projection.capacity/ast-extraction`):**  
-  `mdrag` treats each ticket heading (`### T-571`) as an isolated AST subtree. The boundaries are mathematically defined: from heading token to next heading of equal or higher depth. Embedded bash fences, backticks, or nested lists cannot leak across ticket boundaries.
-- **Shadow Patching Ticket Metadata (`:projection.capacity/shadow-patching`):**  
-  When an automated test runner passes all acceptance criteria, it invokes shadow patching to update ticket metadata:
-  ```yaml
-  status: DELIVERED
-  verified_in_commit: 9af079bd
-  test_coverage: 96.4%
-  ```
-  Every human comment, task checkbox order, and conversational annotation remains byte-for-byte identical.
-- **CI/CD Quality-Control Gating:**  
-  Just as `refverify` enforces `PASS`/`WARN`/`BLOCK` on bibliographies, a ticket verification engine enforces automated gates before a PR can merge: checking that every acceptance criterion in the ticket block corresponds to a passing test report.
+### Layer 3: Coordinate Block Addressing (`:projection.capacity/block-addressability`)
+Drawing on Rich Hickey's coordinate design:
+- Blocks are addressed via namespaced coordinates: `namespace:collection/entity:block-id`.
+- Coordinates separate the *identifier* of the block from its mutable position in the file.
+- Changes to surrounding paragraphs do not alter the coordinate identity of adjacent blocks.
 
 ---
 
-## 3. Level 2: Federated Research Wikis & Structured Block Namespacing
+## 3. Domain 1: Markdown-Native Ticketing & Lifecycle Engines
 
-> **Coordinates:** `:projection.tier/institutional-knowledge-wikis`, `:projection.domain/federated-wiki-corpora`, `:projection.domain/structured-block-namespacing`
+> **Coordinate:** `:projection.domain/markdown-ticketing`  
+> Technical implementation for teams maintaining git-native issue trackers (`TICKETS-*.md`).
 
-In research organizations and engineering collectives, knowledge is organized into **distributed Markdown wikis** (e.g., `research-wiki/`, `docs/platform/`, `RFC/`). These wikis avoid centralized databases, relying instead on federated repositories linked through namespaced coordinates.
+### The Architecture of a Markdown Ticket System
+Teams running git-native workflows store tasks in structured Markdown files where each ticket is an AST heading subtree:
 
-### The Operational Challenge in Federated Corpora
-Wikis suffer from two fatal ailments:
-1. **Link Rot and Semantic Drift:** A link to `wiki/architecture.md#caching` breaks when a heading is renamed or rewritten.
-2. **Coarse-Grained Retrieval:** Search engines return entire 10,000-word files rather than the specific 3-line axiom, formula, or proof being cited.
+```markdown
+### T-581: Implement asynchronous verification pipeline
+- Status: OPEN
+- Priority: P1
+- Owner: edphos
+- Acceptance Criteria:
+  - [ ] Non-blocking task dispatch via taskflow
+  - [ ] Event loop utilization < 15% under load
+<!-- Note: upstream PR #42 must merge first -->
+```
 
-### How Our Innovations Transform Wiki Architecture
-- **Hickey Coordinate Block Addressability (`:projection.capacity/block-addressability`):**  
-  By parsing Markdown with `mdrag`, every block acquires a deterministic, content- or path-addressed coordinate:
-  ```
-  wiki:sys.arch/cache:block:l2-invalidation
-  wiki:sci.bio/valence:sec:cambrian:p4
-  ```
-  Cross-document references link to **immutable block coordinates** rather than fragile heading anchors or transient line numbers.
-- **Lossless Provenance Stamping:**  
-  When automated knowledge graph crawlers (FKA indexing agents) map influence edges (`inherits-from`, `critiques`, `operationalizes`), they record discovered relations directly into the document's YAML frontmatter via shadow patching without disturbing the researcher's prose:
-  ```yaml
-  fka:
-    graph_type: influence
-    inbound_edges:
-      - from: wiki:math.logic/goedel
-        predicate: operationalizes
-        discovered_at: 2026-11-10
-  ```
-- **Namespaced Dialect Coexistence:**  
-  Under the Open-World Assumption (OWA), different research teams register their own namespace semantics (e.g., `inv.forensics.*` vs. `anthro.etho.*`) in the same wiki corpus. Shadow patching guarantees that an agent understanding only `:sci.bio/*` can update biological metadata without corrupting forensic metadata blocks.
+### Technical Workflow with `mdrag` and `frontmatters`
 
----
+```
+  Git Push / CI Trigger
+            │
+            ▼
+┌───────────────────────┐
+│  mdrag AST Slicer     │ ──► Isolates block: Heading(level=3, text="T-581...")
+└───────────┬───────────┘     Collects child AST: List(items=[...]), Comment(...)
+            │
+            ▼
+┌───────────────────────┐
+│ Execution Engine      │ ──► Runs tests associated with T-581 criteria
+└───────────┬───────────┘
+            │
+            ▼
+┌───────────────────────┐
+│ CST Shadow Patcher    │ ──► Slices token `- Status: OPEN`
+└───────────┬───────────┘     Mutates to `- Status: DELIVERED`
+            │                 Appends `- Verified-In: commit 9af079bd`
+            ▼                 Preserves `<!-- Note: upstream PR #42... -->` exactly
+  Atomic Git Commit
+```
 
-## 4. Level 3: External High-Assurance Domains
-
-> **Coordinates:** `:projection.tier/external-compliance-critical`, `:projection.domain/legal-regulatory`, `:projection.domain/clinical-trials`
-
-Once grounded in concrete software and wiki practices, the exact same mathematical properties project directly into mission-critical external industries where document corruption carries severe regulatory or life-safety liability:
-
-### Domain A: Legal, Statutory & Regulatory Contracts
-- **Coordinate:** `:projection.domain/legal-regulatory`
-- **Application:** Legal teams drafting contracts, credit agreements, or statutory filings in Markdown.
-- **Workflow:**  
-  - `mdrag` slices `## Indemnification` or `## Covenants` AST blocks.
-  - Automated compliance engines verify statutory citations and court precedent.
-  - Shadow patching stamps `counsel_signoff_hash` and `jurisdiction_risk_tier` without altering legal indentation or attorney comments (`# Pending Munich partner signoff`).
-  - Block coordinates (`contract:clause:indemnity:p2`) link clauses directly to verified precedent databases.
-
-### Domain B: Clinical Trial Protocols & Regulatory Filings (FDA / EMA)
-- **Coordinate:** `:projection.domain/clinical-trials`
-- **Application:** Medical research protocols where every assertion regarding drug efficacy, inclusion/exclusion criteria, or dosing must link to validated clinical trial records.
-- **Workflow:**  
-  - `mdrag` separates tabular adverse event reporting and dosing regimens into structured AST blocks.
-  - Verification engines resolve PubMed IDs and ClinicalTrials.gov NCT identifiers.
-  - Shadow patching stamps GCP/IRB audit approval gates into protocol headers while respecting OWA medical ontology keys.
+1. **AST Isolation:** `mdrag` traverses the file AST, locates the heading matching `r"^T-\d+"`, and returns the discrete AST node containing only that ticket's properties and acceptance criteria.
+2. **Deterministic Status Patching:** When CI executes the tests, the runner updates the ticket status. Instead of rewriting `TICKETS.md` via regex (which risks mangling adjacent tickets or stripping comments), the shadow patcher performs an in-situ token replacement.
+3. **Lockless Concurrent Modifications:** Because tickets are delineated AST blocks, automated tools can compute git merge resolutions at the AST block level rather than line-by-line, reducing merge conflicts when multiple agents update different tickets in the same file.
 
 ---
 
-## 5. Architectural Generalization Matrix
+## 4. Domain 2: Federated Knowledge Wikis & Block Namespacing
 
-| Operational Tier | Primary Medium | What `mdrag` Slices | What `frontmatters` Injects | What Block Coordinates Anchor |
-|---|---|---|---|---|
-| **Level 1: Software Practice** | Git `TICKETS-*.md`, PRs | Individual ticket bodies (`### T-NNN`), acceptance tests, logs | Test verdicts, CI commit hashes, review approvals | Acceptance criteria $\to$ Test execution traces |
-| **Level 2: Research Wikis** | Federated Markdown Corpora | Concept definitions, literature reviews, lemmas | FKA graph edges, discovery dates, epistemic basis tiers | In-text claims $\to$ Primary citations & proofs |
-| **Level 3: Regulatory & Legal** | Contracts, Protocols, RFCs | Clauses, statutory references, adverse event tables | Compliance hashes, IRB approval IDs, audit risk scores | Legal clauses $\to$ Statutory precedent / Case law |
+> **Coordinates:** `:projection.domain/federated-wiki-corpora`, `:projection.domain/structured-block-namespacing`  
+> Technical implementation for multi-author research wikis and coordinate-indexed knowledge graphs.
+
+### The Problem of Granular Addressing in Distributed Wikis
+In federated wiki systems (e.g., `research-wiki/wiki/`), documents are technical assets carrying formal definitions, proofs, and claims.
+When a document in `math.logic/` references a specific lemma inside `phil.epistemics/foundations.md`, conventional markdown links (`[Lemma 2](foundations.md#lemma-2)`) fail when:
+- The author renames `## Lemma 2` to `## Lemma 2 (Soundness)`;
+- The file is split or relocated within the namespace hierarchy;
+- The consuming tool needs to transclude the exact lemma text into an evaluation harness.
+
+### Technical Implementation of Coordinate Block Namespacing
+
+```
+                federated-wiki/
+                ├── math.logic/
+                │   └── incompleteness.md
+                │       ├── Coordinate: :math.logic/goedel:block:first-theorem
+                │       └── Body: AST Paragraph + Proof List
+                └── phil.epistemics/
+                    └── foundations.md
+                        └── Points to: :math.logic/goedel:block:first-theorem
+```
+
+1. **Deterministic Coordinate Assignment:**  
+   `mdrag` assigns each heading, list, or formal paragraph a block coordinate derived from the document's namespaced URI and a stable block slug:
+   ```
+   Coordinate = <namespace> / <document_id> : <block_type> : <block_slug>
+   Example: :sci.bio/valence:lemma:cambrian-gradient
+   ```
+2. **AST Transclusion Engine:**  
+   When a document transcludes or verifies a referenced block, `mdrag` retrieves the target AST node directly without loading or evaluating surrounding commentary.
+3. **Lossless Graph Stamping:**  
+   Knowledge crawlers mapping relationships (`inherits-from`, `critiques`, `refines`) use shadow patching to write edge lists into the document's YAML frontmatter:
+   ```yaml
+   ---
+   uri: sci.bio/valence
+   coordinates:
+     - :sci.bio/valence:lemma:cambrian-gradient
+   fka_edges:
+     - predicate: refines
+       target: :sci.bio/chemiosmosis:sec:proton-gradient
+       verified_hash: sha256:d41d8cd98f00b204e9800998ecf8427e
+   ---
+   ```
+   The researcher's manual annotations, draft markers, and custom keys are preserved byte-for-byte.
 
 ---
 
-## 6. Synthesis: The Universal Paradigm
+## 5. Domain 3: High-Assurance Technical Specifications & Protocols
 
-Across all three levels, `refverify`'s innovations demonstrate a unified paradigm:
+> **Coordinate:** `:projection.tier/external-compliance-critical`  
+> Technical implementation for normative technical standards (RFCs), compliance contracts, and clinical protocol manifests.
 
-1. **Documents as Decentralized Databases:**  
-   Markdown with typed YAML frontmatter and AST addressability is not just text; it is a **git-versioned, decentralized database** that humans can read and write with ordinary text editors, and machines can audit with mathematical precision.
-2. **The Inviolability of Human Artifacts:**  
-   Auditing, verification, and AI assistance must be strictly non-destructive. The moment an automated tool scrambles whitespace, deletes comments, or alters un-targeted prose, it fails as a collaborative partner.
-3. **The Dual Training and Verification Signal:**  
-   By maintaining a clean separation between human prose (content) and machine-addressable coordinates/audit stamps (structure), these systems provide the exact substrate needed for modern hybrid intelligence: natural prose for human deliberation, and rigorous AST targets for formal verification (RLVR) and automated quality-control gates.
+### The Requirements Verification Model
+In high-assurance technical writing (e.g., IETF RFCs with RFC 2119 keywords `MUST`, `SHOULD`, `REQUIRED`), automated compliance tools must verify that implementations fulfill every normative clause.
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│ AST Parser isolates: Heading(level=2, text="Security Considerations")                   │
+│ Extracts child node: Paragraph("An implementation MUST NOT reuse nonces...")           │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│ Verification Engine maps requirement to test suite: test_nonce_reuse_prevention()      │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│ Shadow Patcher stamps verification record in specification frontmatter:                │
+│   conformance_audit:                                                                   │
+│     rfc2119_must_total: 14                                                             │
+│     rfc2119_must_verified: 14                                                          │
+│     audit_gate: PASS                                                                   │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+1. **Syntactic Normative Extraction:** `mdrag` AST visitors scan paragraph children for uppercase normative keywords, indexing each as an addressable test target (`spec:sec:4.1:req:nonce-reuse`).
+2. **Audit Telemetry Persistence:** `frontmatters` writes the resulting verification proofs into the file's metadata header without altering standard RFC layout or formatting conventions.
+
+---
+
+## 6. Technical Invariant Summary
+
+| System / Component | Failure Mode Prevented | Invariant Enforced |
+|---|---|---|
+| **`phosphene-mdrag` (AST Parsing)** | False-positive heading matches inside code fences, tables, and blockquotes. | Block boundaries are determined strictly by AST node hierarchy, never flat regex matching. |
+| **`phosphene-frontmatters` (Shadow Patching)** | Loss of human comments, reordering of YAML mappings, clobbering unmodeled schema keys. | Surgical byte-range token replacement; CST trivia (whitespace, comments) preserved with zero mutation outside target keys. |
+| **Hickey Coordinate Addressing** | Link rot from heading renames; coarse-grained document retrieval. | Immutable, namespaced coordinate anchors (`namespace/doc:type:id`) decoupled from file line numbers. |
