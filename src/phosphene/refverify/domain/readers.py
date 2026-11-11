@@ -1,12 +1,13 @@
 """Document intake readers and AST-aware markdown orchestration.
 
-Extracts bibliography blocks, parses citations, and synchronizes frontmatter
+Extracts bibliography blocks, blockquotes, and synchronizes frontmatter
 using phosphene-mdrag and phosphene-frontmatters.
 """
 
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,15 @@ class DocumentVerificationAudit(InvariantStatic):
     verified_count: int
     mismatch_count: int
     unresolved_count: int
+
+
+@dataclass(frozen=True)
+class BlockquoteExcerpt:
+    """An extracted blockquote with coordinate metadata."""
+
+    coordinate: str
+    text: str
+    target_citation: str = ""
 
 
 def extract_from_markdown(text: str) -> str:
@@ -103,6 +113,80 @@ def extract_from_markdown(text: str) -> str:
         if s.startswith(("* ", "- ")) and re.search(r"\(\d{4}[a-z]?\)", s):
             citation_lines.append(s.lstrip("*- "))
     return "\n".join(citation_lines).strip()
+
+
+def extract_blockquotes_from_markdown(text: str, doc_id: str = "doc") -> list[BlockquoteExcerpt]:
+    """Extract blockquotes with CTS-style coordinates from markdown."""
+    try:
+        from phosphene.mdrag.engine import MarkdownEngine
+
+        engine = MarkdownEngine()
+        doc_text = text if text.strip().startswith("---") else f"---\nuri: transient/document\n---\n\n{text}"
+        ast = engine.read(doc_text)
+
+        quotes: list[BlockquoteExcerpt] = []
+        quote_idx = 0
+        current_sec = "sec0"
+
+        for block in ast.blocks:
+            if block.type == "heading":
+                title = str(block.attrs.get("text", "")).strip()
+                current_sec = re.sub(r"[^\w\-]+", "_", title.lower())
+            elif block.type == "blockquote":
+                quote_text = str(block.attrs.get("content", "") or block.attrs.get("text", "")).strip()
+                if quote_text:
+                    coord = f"{doc_id}:{current_sec}:quote:{quote_idx}"
+                    # Check for attribution hint: e.g. (Faraday 1832) or -- Faraday 1832
+                    target = ""
+                    clean_quote_text = quote_text
+                    attr_match = re.search(r"(?:--|—|\()\s*([A-Za-z\-]+(?:\s+et\s+al\.)?,?\s+\d{4}[a-z]?)\)?$", quote_text)
+                    if attr_match:
+                        target = attr_match.group(1).strip()
+                        clean_quote_text = quote_text[:attr_match.start()].strip()
+                    quotes.append(BlockquoteExcerpt(coordinate=coord, text=clean_quote_text, target_citation=target))
+                    quote_idx += 1
+        if quotes:
+            return quotes
+    except Exception:
+        pass
+
+    # Line-based fallback
+    lines = text.splitlines()
+    quotes = []
+    quote_idx = 0
+    current_sec = "sec0"
+    current_lines: list[str] = []
+
+    def flush_quote():
+        nonlocal current_lines, quote_idx
+        if current_lines:
+            q_text = " ".join(current_lines).strip()
+            target = ""
+            clean_q = q_text
+            attr_match = re.search(r"(?:--|—|\()\s*([A-Za-z\-]+(?:\s+et\s+al\.)?,?\s+\d{4}[a-z]?)\)?$", q_text)
+            if attr_match:
+                target = attr_match.group(1).strip()
+                clean_q = q_text[:attr_match.start()].strip()
+            coord = f"{doc_id}:{current_sec}:quote:{quote_idx}"
+            quotes.append(BlockquoteExcerpt(coordinate=coord, text=clean_q, target_citation=target))
+            quote_idx += 1
+            current_lines = []
+
+    for line in lines:
+        s = line.strip()
+        if s.startswith("#"):
+            flush_quote()
+            title = s.lstrip("#").strip()
+            current_sec = re.sub(r"[^\w\-]+", "_", title.lower())
+        elif s.startswith(">"):
+            clean = s.lstrip(">").strip()
+            if clean:
+                current_lines.append(clean)
+        else:
+            if current_lines:
+                flush_quote()
+    flush_quote()
+    return quotes
 
 
 def patch_document_frontmatter(
