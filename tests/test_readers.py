@@ -28,6 +28,48 @@ Extra details.
     assert "Extra details" not in bib
 
 
+def test_extract_from_markdown_provenance_headings():
+    headings = [
+        "Data Sources and Provenance",
+        "Empirical Baseline & Citations",
+        "Standards & Regulatory References",
+        "Data Sources",
+        "Provenance",
+    ]
+    for h in headings:
+        md = f"""# Engineering Spec
+
+Some body paragraph discussing parameter (2020).
+
+## {h}
+* Doe, J. (2020). Primary Groundwork.
+* Smith, A. (2021). Experimental Test.
+
+## Appendix
+* Extra details (2022).
+"""
+        bib = extract_from_markdown(md)
+        assert "Doe, J. (2020)" in bib, f"Failed for heading {h}"
+        assert "Smith, A. (2021)" in bib, f"Failed for heading {h}"
+        assert "Extra details" not in bib, f"Leaked appendix for heading {h}"
+
+
+def test_extract_from_markdown_explicit_comment_anchors():
+    md = """# Document With Anchors
+
+Body text mentioning various works.
+
+<!-- refverify:begin -->
+* Anchored, A. (2022). Explicit Target Study.
+<!-- refverify:end -->
+
+Post-anchor notes.
+"""
+    bib = extract_from_markdown(md)
+    assert "Anchored, A. (2022)" in bib
+    assert "Post-anchor notes" not in bib
+
+
 def test_extract_from_markdown_fallback_bullets():
     md = """# Notes
 
