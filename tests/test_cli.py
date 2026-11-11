@@ -1,4 +1,4 @@
-"""Tests for refverify CLI entry points, argument parsing, and JSON report emission."""
+"""Tests for refverify CLI entry points, argument parsing, JSON reports, and verbatim quotation verification."""
 
 from __future__ import annotations
 
@@ -75,5 +75,84 @@ def test_cli_blocking_gate(tmp_path: Path):
 
     with patch("phosphene.refverify.__main__.verify_all", return_value=[fake_blocking]):
         code = main([str(md_file), "--no-cache"])
+
+    assert code == EXIT_BLOCK
+
+
+def test_cli_verify_verbatim_pass(tmp_path: Path):
+    witness_dir = tmp_path / "witnesses"
+    witness_dir.mkdir()
+    (witness_dir / "faraday1832.txt").write_text(
+        "By magnetic curves, I mean the lines of magnetic forces, however produced by the magnet."
+    )
+
+    manuscript = tmp_path / "manuscript.md"
+    manuscript.write_text(
+        """# Electromagnetic Discovery
+
+> By magnetic curves, I mean the lines of magnetic forces... (Faraday 1832)
+
+## References
+* Faraday, M. (1832). Experimental Researches in Electricity. Philosophical Transactions.
+"""
+    )
+    json_out = tmp_path / "verbatim_report.json"
+
+    fake_result = VerdictResult(
+        verdict=Verdict.VERIFIED,
+        score=98.0,
+        reasons=("exact_match",),
+        matched_title="Experimental Researches in Electricity",
+    )
+
+    with patch("phosphene.refverify.__main__.verify_all", return_value=[fake_result]):
+        code = main([
+            str(manuscript),
+            "--verify-verbatim", str(witness_dir),
+            "--no-cache",
+            "--json-out", str(json_out),
+        ])
+
+    assert code == EXIT_OK
+    assert json_out.exists()
+    data = json.loads(json_out.read_text())
+    assert data["gate"] == "pass"
+    file_rep = data["files"][0]
+    assert file_rep["verbatim_decision"] == "pass"
+    assert len(file_rep["verbatim_quotes"]) == 1
+    assert file_rep["verbatim_quotes"][0]["status"] == "verbatim_verified"
+
+
+def test_cli_verify_verbatim_mutated_blocks(tmp_path: Path):
+    witness_dir = tmp_path / "witnesses"
+    witness_dir.mkdir()
+    (witness_dir / "faraday1832.txt").write_text(
+        "By magnetic curves, I mean the lines of magnetic forces, however produced by the magnet."
+    )
+
+    manuscript = tmp_path / "mutated_manuscript.md"
+    manuscript.write_text(
+        """# Distorted Claim
+
+> By magnetic curves, I mean the lines of magnetic energy... (Faraday 1832)
+
+## References
+* Faraday, M. (1832). Experimental Researches in Electricity. Philosophical Transactions.
+"""
+    )
+
+    fake_result = VerdictResult(
+        verdict=Verdict.VERIFIED,
+        score=98.0,
+        reasons=("exact_match",),
+        matched_title="Experimental Researches in Electricity",
+    )
+
+    with patch("phosphene.refverify.__main__.verify_all", return_value=[fake_result]):
+        code = main([
+            str(manuscript),
+            "--verify-verbatim", str(witness_dir),
+            "--no-cache",
+        ])
 
     assert code == EXIT_BLOCK
