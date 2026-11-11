@@ -87,7 +87,7 @@ def _extract_title(cleaned: str, link_title: str | None) -> str:
         return link_title.strip()
     m = _YEAR_PAREN_RE.search(cleaned)
     if m:
-        after = cleaned[m.end() :].lstrip(" ")
+        after = cleaned[m.end() :].lstrip(" .")
         # title runs to the first sentence break (". " / ".:''" patterns)
         stop = re.search(r"\.\s", after)
         title = after[: stop.start()] if stop else after
