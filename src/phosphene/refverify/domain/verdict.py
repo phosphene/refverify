@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import enum
+from typing import Literal
 from pydantic import Field
 from phosphene.core.models import InvariantStatic
 
@@ -13,6 +14,8 @@ from phosphene.core.models import InvariantStatic
 #   not_found           -- no provider record matches
 #   low_confidence      -- borderline score between the two thresholds
 #   duplicate           -- same work cited under two entries
+
+GateDecision = Literal["pass", "warn", "block"]
 
 
 @enum.unique
