@@ -1,0 +1,6 @@
+# Julien d'Huy & Yuri Berezkin (2018), Computational Approaches to Comparative Mythology.
+# Locus: Section 2, Phylogenetic Trees of Folklore Motifs
+
+The Cosmic Hunt is one of the most widespread mythological motifs across Eurasia and the Americas. The core plot involves one or more hunters pursuing one or more animals, which are subsequently transformed into stars or constellations.
+
+Phylogenetic algorithms applied to areal distributions of folklore motifs allow researchers to reconstruct deep ancestral mythological nodes, tracing paleolithic migrations across Beringia into the Americas prior to the Younger Dryas.

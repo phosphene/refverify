@@ -28,6 +28,8 @@ def step_glossary(context, domain):
 @given("an empirical citation from chemistry")
 @given("an empirical citation from geology")
 @given("an empirical citation from elemental biology")
+@given("an empirical citation from folktale morphology")
+@given("an empirical citation from comparative folklore")
 def step_citation(context):
     text = context.text.strip()
     lines = text.split("\n")

@@ -1,0 +1,6 @@
+# Stith Thompson (1936), Motif-Index of Folk-Literature. Indiana University Press.
+# Locus: Introduction & General Classification Principles
+
+A motif is the smallest element in a tale having a power to persist in tradition. In order to have this power it must have in it something of the unusual and striking. Most motifs fall into three classes: first, the actors in a tale; second, certain items in the background of the action; and third, single incidents, which comprise the great majority of motifs.
+
+A tale type is a traditional tale that has an independent existence. It may be told as a complete narrative and does not depend for its meaning on any other tale.
