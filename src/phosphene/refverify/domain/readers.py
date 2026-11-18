@@ -91,7 +91,7 @@ def extract_from_markdown(text: str) -> str:
 
     # Deterministic fallback line parser
     lines = text.splitlines()
-    header_pattern = re.compile(rf"^#{{1,4}}\s*{PROVENANCE_HEADING_REGEX}", re.IGNORECASE)
+    header_pattern = re.compile(rf"^#{{0,4}}\s*{PROVENANCE_HEADING_REGEX}", re.IGNORECASE)
 
     start_idx = -1
     for idx, line in enumerate(lines):
