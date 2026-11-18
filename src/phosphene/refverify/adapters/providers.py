@@ -280,10 +280,22 @@ class ArxivClient(_Cached):
             return None
 
 
-def default_chain(cache: FileCache | None = None) -> list:
-    """Fallback order per editorial-pipeline#22: Crossref -> OpenAlex -> arXiv."""
-    return [
+def default_chain(
+    cache: FileCache | None = None,
+    local_pdf_dir: str | None = None,
+) -> list:
+    """Fallback order: Local Library (Priority 0) -> Crossref -> OpenAlex -> OpenLibrary -> arXiv."""
+    chain = []
+    if local_pdf_dir:
+        from phosphene.refverify.adapters.local_pdf import LocalPdfWitnessIndex
+        chain.append(LocalPdfWitnessIndex(pdf_dir=local_pdf_dir))
+
+    chain.extend([
         CrossrefClient(cache=cache),
         OpenAlexClient(cache=cache),
-        ArxivClient(cache=cache),
-    ]
+    ])
+
+    from phosphene.refverify.adapters.openlibrary import OpenLibraryClient
+    chain.append(OpenLibraryClient(cache=cache))
+    chain.append(ArxivClient(cache=cache))
+    return chain

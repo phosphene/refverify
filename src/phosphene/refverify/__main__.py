@@ -23,7 +23,7 @@ from typing import Any
 from phosphene.refverify.adapters.cache import FileCache
 from phosphene.refverify.adapters.providers import default_chain
 from phosphene.refverify.domain.readers import extract_bibliography, extract_blockquotes_from_markdown
-from phosphene.refverify.domain.reference import Reference, parse_bibliography_wikitext
+from phosphene.refverify.domain.reference import Reference, parse_bibliography_wikitext, parse_bibliography_plain
 from phosphene.refverify.domain.verdict import GateDecision, Verdict, VerdictResult
 from phosphene.refverify.domain.verify import gate_decision, verify_all
 from phosphene.refverify.domain.verbatim import (
@@ -72,6 +72,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=str,
         default=None,
         help="Path to emit structured verification report as JSON.",
+    )
+    p.add_argument(
+        "--local-pdf-dir",
+        type=str,
+        default=None,
+        help="Path to directory containing local PDF primary sources (Priority 0 offline lookup).",
     )
     p.add_argument(
         "--verify-verbatim",
@@ -177,9 +183,17 @@ def _verify_bibliography_payload(
     text: str,
     cache: FileCache,
     label: str,
+    local_pdf_dir: str | None = None,
 ) -> tuple[str, int, dict[str, Any]]:
     """Verify one bibliography text; returns (gate decision, blocking count, file report dict)."""
-    refs = parse_bibliography_wikitext(text)
+    # Try wikitext first; if no links/wikitext, parse as plain APA/Chicago lines
+    if "[http" in text or "''" in text:
+        refs = parse_bibliography_wikitext(text)
+    else:
+        refs = parse_bibliography_plain(text)
+        if not refs:
+            refs = parse_bibliography_wikitext(text)
+
     if not refs:
         print(f"no bibliography entries found in {label}")
         empty_report: dict[str, Any] = {
@@ -191,7 +205,7 @@ def _verify_bibliography_payload(
         }
         return "pass", 0, empty_report
 
-    results = verify_all(refs, default_chain(cache=cache))
+    results = verify_all(refs, default_chain(cache=cache, local_pdf_dir=local_pdf_dir))
     decision = gate_decision(r.verdict for r in results)
     blocking = sum(1 for r in results if r.verdict in _BLOCKING)
 
@@ -299,7 +313,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"file not found: {p}", file=sys.stderr)
             return EXIT_USAGE
         bib_text = extract_bibliography(p)
-        decision, blocking, report = _verify_bibliography_payload(bib_text, cache, str(p))
+        decision, blocking, report = _verify_bibliography_payload(
+            bib_text, cache, str(p), local_pdf_dir=args.local_pdf_dir
+        )
 
         # If verbatim verification is requested and file is markdown, verify blockquotes
         if args.verify_verbatim and p.suffix.lower() in (".md", ".markdown"):

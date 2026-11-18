@@ -29,6 +29,7 @@ _WIKI_URL_RE = re.compile(r"\[(https?://\S+)(?:\s+[^\]]*)?\]")
 _ITALIC_RE = re.compile(r"''(.+?)''")
 _BOLD_RE = re.compile(r"'{3}(.+?)'{3}")
 _AUTHOR_SPLIT_RE = re.compile(r",?\s+and\s+|\s+and\s+", re.IGNORECASE)
+_ET_AL_RE = re.compile(r",?\s+et\s+al\.?", re.IGNORECASE)
 
 
 class Reference(InvariantStatic):
@@ -96,14 +97,71 @@ def _extract_title(cleaned: str, link_title: str | None) -> str:
 
 
 def _extract_authors(cleaned: str) -> tuple[str, ...]:
-    """Authors from the pre-year head of the entry."""
+    """Authors from the pre-year head of the entry.
+    
+    Supports both wikitext standard (Surname, Initial and Surname, Initial)
+    and APA/Chicago formats (Surname, I.N., & Surname, I.N., or et al.).
+    """
     m = _YEAR_PAREN_RE.search(cleaned)
     head = cleaned[: m.start()] if m else cleaned.split(". ")[0]
     head = head.strip().strip(".").strip()
     if not head:
         return ()
-    chunks = [c.strip().strip(".").strip() for c in _AUTHOR_SPLIT_RE.split(head)]
-    return tuple(c for c in chunks if c)
+
+    # Clean et al.
+    head_no_etal = _ET_AL_RE.sub("", head)
+    # Normalize ampersands to semicolons
+    head_norm = re.sub(r"\s*&\s*|\s+and\s+", "; ", head_no_etal, flags=re.IGNORECASE)
+
+    parts = [p.strip() for p in head_norm.split(";") if p.strip()]
+    authors: list[str] = []
+    for part in parts:
+        subparts = [sp.strip() for sp in part.split(",") if sp.strip()]
+        i = 0
+        while i < len(subparts):
+            token = subparts[i]
+            # If next token looks like initials (e.g. S., A.S., M.W., P.J)
+            if i + 1 < len(subparts) and re.match(r"^[A-Z](\.[A-Z])*\.?$", subparts[i + 1].replace(" ", "")):
+                # Ensure initials end with period
+                initials = subparts[i + 1].strip()
+                if not initials.endswith("."):
+                    initials += "."
+                authors.append(f"{token}, {initials}")
+                i += 2
+            else:
+                authors.append(token)
+                i += 1
+
+    return tuple(c for c in authors if c)
+
+
+def from_plain_entry(raw: str) -> Reference:
+    """Parse standard unlinked APA/Chicago/MLA bibliographic line into a Reference."""
+    cleaned = raw.strip().lstrip("*- ").strip()
+    doi_m = _DOI_RE.search(cleaned)
+    arxiv_m = _ARXIV_RE.search(cleaned)
+
+    paren_m = _YEAR_PAREN_RE.search(cleaned)
+    year_m = _YEAR_RE.search(cleaned)
+    year = (
+        int(paren_m.group(1)) if paren_m else (int(year_m.group(1)) if year_m else None)
+    )
+
+    return Reference(
+        text=cleaned,
+        title=_extract_title(cleaned, None),
+        authors=_extract_authors(cleaned),
+        year=year,
+        doi=doi_m.group(1) if doi_m else None,
+        arxiv_id=arxiv_m.group(1) if arxiv_m else None,
+        url=None,
+    )
+
+
+def parse_bibliography_plain(text: str) -> list[Reference]:
+    """Parse newline-delimited plain text bibliography."""
+    entries = [line.strip().lstrip("*- ").strip() for line in text.splitlines() if line.strip()]
+    return [from_plain_entry(e) for e in entries if e]
 
 
 def from_wikitext_entry(raw: str) -> Reference:
