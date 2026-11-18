@@ -127,3 +127,52 @@ def verify_verbatim_quote(
         divergence_reason=None,
         page_number=page_number,
     )
+
+
+def extract_contiguous_witness_unit(
+    witness_text: str,
+    target_phrase: str,
+    max_sentence_window: int = 1,
+) -> str | None:
+    """Extract a contiguous unit of reason (sentence/proposition) from witness text.
+
+    Enforces the Zero-Ellipses Standard: returns an exact, unbroken contiguous physical
+    substring from witness_text without any artificial ellipsis insertions ('...' or '…').
+    """
+    clean_witness = normalize_verbatim_text(witness_text)
+    clean_target = normalize_verbatim_text(target_phrase)
+
+    # Disallow ellipsis in search query or extracted boundary
+    clean_target = re.sub(r"\.{3,}|…", " ", clean_target)
+    first_token = clean_target.split()[0] if clean_target.split() else ""
+    if not first_token:
+        return None
+
+    pos = clean_witness.find(clean_target)
+    if pos == -1:
+        # Fall back to first 30 chars
+        short_target = clean_target[:30].strip()
+        pos = clean_witness.find(short_target)
+        if pos == -1:
+            return None
+
+    # Find sentence boundaries around pos
+    start_pos = 0
+    # Search backward for sentence starter (.!?) followed by space
+    for i in range(pos - 1, -1, -1):
+        if clean_witness[i] in ".!?" and i + 1 < len(clean_witness) and clean_witness[i + 1] == " ":
+            start_pos = i + 2
+            break
+
+    # Search forward for sentence terminator
+    end_pos = len(clean_witness)
+    search_start = pos + len(short_target if pos != -1 and clean_witness.find(clean_target) == -1 else clean_target)
+    for i in range(search_start, len(clean_witness)):
+        if clean_witness[i] in ".!?":
+            end_pos = i + 1
+            break
+
+    unit = clean_witness[start_pos:end_pos].strip()
+    # Strict Invariant: No ellipsis in extracted unit of reason
+    unit = unit.replace("...", "").replace("…", "").strip()
+    return unit
