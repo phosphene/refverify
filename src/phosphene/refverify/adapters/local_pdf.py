@@ -164,6 +164,15 @@ class LocalPdfWitnessIndex:
         authors = (fn_author,) if fn_author else ()
         year = fn_year
 
+        # Heuristic 2: If page 1 text is available and starts with prominent lines,
+        # extract candidate title from first non-empty lines if stem was non-standard
+        if extracted_text_p1 and (not fn_title or fn_title.startswith("nodate") or fn_title.startswith("cite_")):
+            lines = [l.strip() for l in extracted_text_p1.splitlines() if l.strip() and len(l.strip()) > 5]
+            if lines:
+                candidate_title = lines[0]
+                if len(candidate_title) > 10:
+                    title = candidate_title
+
         return LocalPdfMetadata(
             sha256=sha,
             file_path=str(path.resolve()),
@@ -237,7 +246,12 @@ class LocalPdfWitnessIndex:
             entry = self._sha_map[identifier]
         else:
             for e in self._entries:
-                if e.filename == identifier or Path(e.file_path).name == identifier:
+                if (
+                    e.filename == identifier
+                    or Path(e.file_path).name == identifier
+                    or identifier in e.filename
+                    or identifier in e.title
+                ):
                     entry = e
                     break
 
@@ -263,7 +277,12 @@ class LocalPdfWitnessIndex:
             entry = self._doi_map[norm_id]
         else:
             for e in self._entries:
-                if e.filename == identifier or Path(e.file_path).name == identifier:
+                if (
+                    e.filename == identifier
+                    or Path(e.file_path).name == identifier
+                    or identifier in e.filename
+                    or identifier in e.title
+                ):
                     entry = e
                     break
 
