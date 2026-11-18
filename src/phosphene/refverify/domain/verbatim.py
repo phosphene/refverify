@@ -27,15 +27,27 @@ class VerbatimResult:
     claimed_text: str
     matched_span: tuple[int, int] | None
     divergence_reason: str | None = None
+    page_number: int | None = None
 
 
 def normalize_verbatim_text(text: str) -> str:
-    """Normalize typography without altering semantics or tokens.
+    """Normalize typography and OCR artifacts without altering semantics or tokens.
 
-    Strips soft hyphens, translates curly quotes/dashes, strips outer quotes,
-    and collapses internal whitespace.
+    Strips soft hyphens, collapses discretionary end-of-line hyphens,
+    unfolds standard ligatures (fi, fl, ff, ffi, ffl), translates
+    curly quotes/dashes, strips outer quotes, and collapses internal whitespace.
     """
     t = text.replace("\xad", "")  # soft hyphen
+    # Ligatures unfolding
+    t = (
+        t.replace("ﬁ", "fi")
+        .replace("ﬂ", "fl")
+        .replace("ﬀ", "ff")
+        .replace("ﬃ", "ffi")
+        .replace("ﬄ", "ffl")
+    )
+    # Collapse discretionary end-of-line hyphens: e.g. "word-\nbreak" -> "wordbreak"
+    t = re.sub(r"(\w+)-\s*\n\s*(\w+)", r"\1\2", t)
     t = t.replace("“", '"').replace("”", '"').replace("‘", "'").replace("’", "'")
     t = t.replace("—", "--").replace("–", "-")
     # Strip leading/trailing quotation marks from the excerpt
@@ -50,6 +62,7 @@ def verify_verbatim_quote(
     witness_text: str,
     coordinate: str = "doc:sec:quote",
     target_citation: str = "",
+    page_number: int | None = None,
 ) -> VerbatimResult:
     """Check whether claimed_text exists verbatim within witness_text.
 
@@ -67,6 +80,7 @@ def verify_verbatim_quote(
             claimed_text=claimed_text,
             matched_span=None,
             divergence_reason="witness_text_empty",
+            page_number=page_number,
         )
 
     # Check for ellipsis-delimited spans
@@ -80,6 +94,7 @@ def verify_verbatim_quote(
             claimed_text=claimed_text,
             matched_span=None,
             divergence_reason="empty_claim",
+            page_number=page_number,
         )
 
     last_idx = 0
@@ -96,6 +111,7 @@ def verify_verbatim_quote(
                 claimed_text=claimed_text,
                 matched_span=None,
                 divergence_reason=f"subspan_not_found: {part[:40]}...",
+                page_number=page_number,
             )
         if idx == 0:
             start_span = pos
@@ -109,4 +125,5 @@ def verify_verbatim_quote(
         claimed_text=claimed_text,
         matched_span=(start_span or 0, end_span or 0),
         divergence_reason=None,
+        page_number=page_number,
     )

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -84,6 +85,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=str,
         default=None,
         help="Path to directory containing primary witness texts (.txt / .md) for verbatim quotation checking.",
+    )
+    p.add_argument(
+        "--verify-quotes",
+        action="store_true",
+        help="Cross-examine extracted quotations and citations against resolved local PDF witnesses.",
     )
     return p
 
@@ -173,6 +179,115 @@ def _verify_verbatim_blockquotes(
             "status": res.status.value,
             "matched_span": list(res.matched_span) if res.matched_span else None,
             "divergence_reason": res.divergence_reason,
+            "page_number": res.page_number,
+        })
+
+    decision = "block" if has_mutation else "pass"
+    return decision, results
+
+
+def _verify_quotes_against_pdf_index(
+    file_path: Path,
+    pdf_index: Any,
+) -> tuple[str, list[dict[str, Any]]]:
+    """Cross-examine in-text and block quotes against the local PDF witness index."""
+    content = file_path.read_text(encoding="utf-8", errors="replace")
+    doc_id = file_path.stem
+
+    # 1. Extract blockquotes
+    quotes = extract_blockquotes_from_markdown(content, doc_id=doc_id)
+
+    # 2. Extract in-text quoted spans with parenthetical or narrative citations
+    # e.g. "quoted text" (Author et al., Year, p. X)
+    intext_pattern = re.compile(
+        r'[\"“]([^\"”]{15,300})[\"”]\s*(?:\([^)]*?([A-Z][A-Za-z\-]+(?:\s+et\s+al\.)?,?\s+\d{4}[a-z]?(?:,\s*p(?:p)?\.\s*\d+)?)[^)]*?\)|,\s*in\s+([A-Z][A-Za-z\-]+(?:\s+and\s+[A-Za-z\-]+)?)\'s\s+phrase)'
+    )
+    intext_matches = intext_pattern.findall(content)
+    for idx, match in enumerate(intext_matches):
+        q_text = match[0].strip()
+        cit = (match[1] or match[2]).strip()
+        coord = f"{doc_id}:intext:quote:{idx}"
+        quotes.append(BlockquoteExcerpt(coordinate=coord, text=q_text, target_citation=cit))
+
+    if not quotes:
+        return "pass", []
+
+    results: list[dict[str, Any]] = []
+    has_mutation = False
+
+    for q in quotes:
+        target = q.target_citation
+        matched_text: str | None = None
+        target_author = ""
+        target_year: int | None = None
+
+        if target:
+            y_m = re.search(r"\b(19\d\d|20\d\d)\b", target)
+            if y_m:
+                target_year = int(y_m.group(1))
+            a_m = re.search(r"([A-Za-z\-]+)", target)
+            if a_m:
+                target_author = a_m.group(1)
+
+        # Search in PDF index
+        matched_pages: list[int] = []
+        if target_author or target:
+            cands = pdf_index.search(
+                title=target_author or target,
+                author=target_author if target_author else None,
+                year=target_year,
+            )
+            for cand in cands:
+                full_text = pdf_index.get_full_text(cand.title)
+                if full_text:
+                    matched_text = full_text
+                    # Search page loci
+                    clean_first_phrase = q.text[:30].strip()
+                    pages = pdf_index.search_page_loci(cand.title, clean_first_phrase)
+                    if pages:
+                        matched_pages = pages
+                    break
+
+        if not matched_text:
+            # Fallback: search across all PDFs for the first phrase of the quote
+            clean_first = q.text[:40].strip()
+            for entry in pdf_index._entries:
+                pages = pdf_index.search_page_loci(entry.filename, clean_first)
+                if pages:
+                    matched_text = pdf_index.get_full_text(entry.filename)
+                    matched_pages = pages
+                    break
+
+        if not matched_text:
+            res = VerbatimResult(
+                status=VerbatimStatus.WITNESS_NOT_FOUND,
+                coordinate=q.coordinate,
+                target_citation=q.target_citation,
+                claimed_text=q.text,
+                matched_span=None,
+                divergence_reason="pdf_witness_not_found",
+            )
+        else:
+            page_num = matched_pages[0] if matched_pages else None
+            res = verify_verbatim_quote(
+                claimed_text=q.text,
+                witness_text=matched_text,
+                coordinate=q.coordinate,
+                target_citation=q.target_citation,
+                page_number=page_num,
+            )
+
+        if res.status == VerbatimStatus.VERBATIM_MUTATED:
+            has_mutation = True
+
+        results.append({
+            "coordinate": res.coordinate,
+            "target_citation": res.target_citation,
+            "claimed_text": res.claimed_text,
+            "status": res.status.value,
+            "matched_span": list(res.matched_span) if res.matched_span else None,
+            "divergence_reason": res.divergence_reason,
+            "page_number": res.page_number,
         })
 
     decision = "block" if has_mutation else "pass"
@@ -328,6 +443,22 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"[VERBATIM BLOCK] Mutated quotation detected in {p}")
             elif v_quotes:
                 print(f"[VERBATIM PASS] Verified {len(v_quotes)} blockquote(s) in {p}")
+
+        # If --verify-quotes is requested with a local PDF directory, cross-examine quotes against PDFs
+        if args.verify_quotes and args.local_pdf_dir and p.suffix.lower() in (".md", ".markdown"):
+            from phosphene.refverify.adapters.local_pdf import LocalPdfWitnessIndex
+
+            pdf_idx = LocalPdfWitnessIndex(args.local_pdf_dir)
+            q_decision, q_quotes = _verify_quotes_against_pdf_index(p, pdf_idx)
+            report["quote_locus_decision"] = q_decision
+            report["quote_locus_verifications"] = q_quotes
+            if q_decision == "block":
+                worst = "block"
+                blocking_total += sum(1 for q in q_quotes if q["status"] == VerbatimStatus.VERBATIM_MUTATED.value)
+                print(f"[LOCUS BLOCK] Mutated quote locus detected in {p}")
+            elif q_quotes:
+                verified_count = sum(1 for q in q_quotes if q["status"] == VerbatimStatus.VERBATIM_VERIFIED.value)
+                print(f"[LOCUS AUDIT] Cross-examined {len(q_quotes)} quote(s) against local PDF corpus ({verified_count} verified)")
 
         all_reports.append(report)
         if decision == "block":
