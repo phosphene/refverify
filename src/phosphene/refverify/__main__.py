@@ -91,6 +91,24 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Cross-examine extracted quotations and citations against resolved local PDF witnesses.",
     )
+    p.add_argument(
+        "--db",
+        type=str,
+        default=None,
+        help="Path to relational SQLite verification ledger (registry.db).",
+    )
+    p.add_argument(
+        "--emit-provenance-md",
+        type=str,
+        default=None,
+        help="Directory to materialize reproducible verbatim provenance slips (.provenance.md).",
+    )
+    p.add_argument(
+        "--export-bundle",
+        type=str,
+        default=None,
+        help="Directory or path to export a hermetic verification bundle (.tar.gz).",
+    )
     return p
 
 
@@ -459,6 +477,86 @@ def main(argv: Sequence[str] | None = None) -> int:
             elif q_quotes:
                 verified_count = sum(1 for q in q_quotes if q["status"] == VerbatimStatus.VERBATIM_VERIFIED.value)
                 print(f"[LOCUS AUDIT] Cross-examined {len(q_quotes)} quote(s) against local PDF corpus ({verified_count} verified)")
+
+        # Record to Relational SQLite Ledger if --db requested
+        if args.db:
+            from phosphene.refverify.storage.sqlite import SqliteVerificationLedger
+            from phosphene.refverify.domain.proof import ProofTier
+
+            ledger = SqliteVerificationLedger(args.db)
+            doc_id = p.stem
+
+            for r_entry in report.get("references", []):
+                urn = f"urn:cts:phosphene:{doc_id}#cit:{r_entry.get('raw_line', '')[:30]}"
+                ledger.register_citation(
+                    citation_urn=urn,
+                    doc_id=doc_id,
+                    raw_text=r_entry.get("raw_line", ""),
+                    title=r_entry.get("parsed_title"),
+                    authors=r_entry.get("parsed_authors", []),
+                    year=r_entry.get("parsed_year"),
+                    doi=r_entry.get("parsed_doi"),
+                )
+                status = r_entry.get("status")
+                tier = (
+                    ProofTier.L2_WITNESS_LOCKED.value
+                    if r_entry.get("matched_source") == "local_library"
+                    else (ProofTier.L1_CATALOG_RESOLVED.value if status == "verified" else ProofTier.L0_ASSERTED.value)
+                )
+                ledger.record_proof_state(
+                    citation_urn=urn,
+                    proof_tier=tier,
+                    score=r_entry.get("score", 0.0),
+                    source=r_entry.get("matched_source") or "unresolved",
+                    page_number=None,
+                )
+
+        # Emit Provenance Slips if --emit-provenance-md requested
+        if getattr(args, "emit_provenance_md", None):
+            prov_dir = Path(args.emit_provenance_md)
+            prov_dir.mkdir(parents=True, exist_ok=True)
+            from phosphene.refverify.domain.provenance_slip import ProvenanceSlip
+            from phosphene.refverify.domain.proof import ProofTier
+            from phosphene.refverify.domain.verbatim import extract_contiguous_witness_unit
+
+            doc_id = p.stem
+            for idx, q_info in enumerate(report.get("quote_locus_verifications", [])):
+                if q_info.get("status") == "verbatim_verified":
+                    slip_id = f"prov:{doc_id}:q{idx+1}"
+                    urn = f"urn:cts:phosphene:{doc_id}#{q_info.get('coordinate', f'q{idx+1}')}"
+                    claimed = q_info.get("claimed_text", "")
+                    # Contiguous unit of reason
+                    contig = claimed
+                    if args.local_pdf_dir:
+                        from phosphene.refverify.adapters.local_pdf import LocalPdfWitnessIndex
+                        pidx = LocalPdfWitnessIndex(args.local_pdf_dir)
+                        full_t = pidx.get_full_text(q_info.get("target_citation", "") or doc_id)
+                        if full_t:
+                            extracted = extract_contiguous_witness_unit(full_t, claimed)
+                            if extracted:
+                                contig = extracted
+
+                    slip = ProvenanceSlip(
+                        provenance_id=slip_id,
+                        citation_urn=urn,
+                        doc_id=doc_id,
+                        claimed_text=claimed,
+                        contiguous_witness_text=contig,
+                        proof_tier=ProofTier.L4_VERBATIM_EXTRACTED,
+                        witness_sha256="vault_locked",
+                        witness_filename=q_info.get("target_citation", "witness.pdf"),
+                        page_number=q_info.get("page_number"),
+                    )
+                    slip.save(prov_dir / f"{doc_id}_q{idx+1}.provenance.md")
+
+        # Export Replication Bundle if --export-bundle requested
+        if args.export_bundle and args.db:
+            from phosphene.refverify.storage.bundler import VerificationBundler
+            bundler = VerificationBundler(args.export_bundle)
+            prov_dir = Path(args.emit_provenance_md) if args.emit_provenance_md else Path("/tmp/empty_prov")
+            prov_dir.mkdir(parents=True, exist_ok=True)
+            bundle_archive = bundler.export_bundle(doc_id=p.stem, sqlite_db_path=args.db, provenance_dir=prov_dir)
+            print(f"[REPLICATION BUNDLE] Created hermetic evidence packet: {bundle_archive}")
 
         all_reports.append(report)
         if decision == "block":

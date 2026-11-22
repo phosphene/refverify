@@ -302,3 +302,69 @@ class LocalPdfWitnessIndex:
             pass
 
         return matching_pages
+
+    def search_bounding_boxes(
+        self, identifier: str, query: str
+    ) -> list[tuple[int, tuple[float, float, float, float]]]:
+        """Return list of (page_number_1_indexed, (x0, y0, x1, y1)) bounding boxes for query."""
+        if fitz is None:
+            return []
+
+        entry: LocalPdfMetadata | None = None
+        norm_id = identifier.lower().strip()
+        if norm_id in self._doi_map:
+            entry = self._doi_map[norm_id]
+        else:
+            for e in self._entries:
+                if (
+                    e.filename == identifier
+                    or Path(e.file_path).name == identifier
+                    or identifier in e.filename
+                    or identifier in e.title
+                ):
+                    entry = e
+                    break
+
+        if not entry:
+            return []
+
+        clean_q = query.strip()
+        boxes: list[tuple[int, tuple[float, float, float, float]]] = []
+        try:
+            doc = fitz.open(entry.file_path)
+            for page_idx in range(len(doc)):
+                page = doc[page_idx]
+                rects = page.search_for(clean_q)
+                for r in rects:
+                    boxes.append((page_idx + 1, (float(r.x0), float(r.y0), float(r.x1), float(r.y1))))
+            doc.close()
+        except Exception:
+            pass
+
+        return boxes
+
+    def format_spatiograph_urn(
+        self,
+        identifier: str,
+        page_number: int,
+        rect_bbox: tuple[float, float, float, float] | None = None,
+    ) -> str:
+        """Format a SpatioGraph / CTS authorial warrant URN with physical selector coordinates."""
+        entry: LocalPdfMetadata | None = None
+        norm_id = identifier.lower().strip()
+        if norm_id in self._doi_map:
+            entry = self._doi_map[norm_id]
+        elif identifier in self._sha_map:
+            entry = self._sha_map[identifier]
+        else:
+            for e in self._entries:
+                if e.filename == identifier or identifier in e.filename:
+                    entry = e
+                    break
+
+        sha = entry.sha256[:16] if entry else "unknown"
+        base_urn = f"urn:cts:phosphene:vault.{sha}:p{page_number}"
+        if rect_bbox:
+            x0, y0, x1, y1 = rect_bbox
+            return f"{base_urn}#rect={x0:.1f},{y0:.1f},{x1:.1f},{y1:.1f}"
+        return base_urn
